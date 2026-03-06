@@ -14,21 +14,20 @@
 version: "3.9"
 
 services:
-
   # ─────────────────────────────────────────────────
   # PostgreSQL — our main database
   # ─────────────────────────────────────────────────
   db:
-    image: postgres:16-alpine        # alpine = smaller image size
+    image: postgres:16-alpine # alpine = smaller image size
     restart: unless-stopped
     environment:
       POSTGRES_USER: nomadcal
       POSTGRES_PASSWORD: nomadcal
       POSTGRES_DB: nomadcal
     ports:
-      - "5432:5432"                  # expose so we can connect with DB tools (TablePlus, DBeaver)
+      - "5432:5432" # expose so we can connect with DB tools (TablePlus, DBeaver)
     volumes:
-      - postgres_data:/var/lib/postgresql/data   # persist data between restarts
+      - postgres_data:/var/lib/postgresql/data # persist data between restarts
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U nomadcal"]
       interval: 5s
@@ -64,10 +63,10 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - DEBUG=true
     volumes:
-      - ./backend:/app                # mount code so --reload works with local edits
+      - ./backend:/app # mount code so --reload works with local edits
     depends_on:
       db:
-        condition: service_healthy    # wait for DB to be ready before starting API
+        condition: service_healthy # wait for DB to be ready before starting API
       redis:
         condition: service_healthy
 

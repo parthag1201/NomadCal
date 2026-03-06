@@ -11,7 +11,7 @@ WORKDIR /app
 # Install dependencies first (separate layer = cached unless requirements change)
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+  && pip install --no-cache-dir -r requirements.txt
 
 # ─── Stage 2: Runtime ───────────────────────────────────────────────────────
 FROM python:3.11-slim AS runtime
