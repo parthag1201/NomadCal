@@ -1,0 +1,75 @@
+# NomadCal — Local development environment
+#
+# Services:
+#   db       — PostgreSQL database
+#   redis    — Redis cache (for flight/hotel price caching)
+#   api      — FastAPI backend (auto-reloads on code changes)
+#
+# Usage:
+#   docker-compose up -d          # start all services in background
+#   docker-compose logs -f api    # stream API logs
+#   docker-compose down           # stop everything
+#   docker-compose down -v        # stop + delete data volumes (fresh start)
+
+version: "3.9"
+
+services:
+
+  # ─────────────────────────────────────────────────
+  # PostgreSQL — our main database
+  # ─────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine        # alpine = smaller image size
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nomadcal
+      POSTGRES_PASSWORD: nomadcal
+      POSTGRES_DB: nomadcal
+    ports:
+      - "5432:5432"                  # expose so we can connect with DB tools (TablePlus, DBeaver)
+    volumes:
+      - postgres_data:/var/lib/postgresql/data   # persist data between restarts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nomadcal"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────
+  # Redis — in-memory cache for flight/hotel prices
+  # ─────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ─────────────────────────────────────────────────
+  # FastAPI backend
+  # ─────────────────────────────────────────────────
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://nomadcal:nomadcal@db:5432/nomadcal
+      - REDIS_URL=redis://redis:6379/0
+      - DEBUG=true
+    volumes:
+      - ./backend:/app                # mount code so --reload works with local edits
+    depends_on:
+      db:
+        condition: service_healthy    # wait for DB to be ready before starting API
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
