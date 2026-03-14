@@ -16,6 +16,16 @@ type WindowsResponse = {
   windows: TravelWindow[]
 }
 
+type PreferencesPayload = {
+  travel_style: 'adventure' | 'relaxation' | 'culture' | 'mixed'
+  budget_per_trip: number
+  annual_budget: number
+  group_type: 'solo' | 'couple' | 'family' | 'friends'
+  activity_interests: string[]
+  domestic_international: 'domestic' | 'international' | 'both'
+  comfort_level: 'backpacker' | 'mid-range' | 'luxury'
+}
+
 const MONTH_OPTIONS = [
   'january',
   'february',
@@ -32,11 +42,28 @@ const MONTH_OPTIONS = [
 ]
 
 function App() {
+  const [userEmail, setUserEmail] = useState('agarwal.parth25@gmail.com')
   const [year, setYear] = useState(2026)
   const [selectedMonths, setSelectedMonths] = useState<string[]>(['march', 'october'])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [data, setData] = useState<WindowsResponse | null>(null)
+  const [apiMessage, setApiMessage] = useState('')
+
+  const [preferences] = useState<PreferencesPayload>({
+    travel_style: 'adventure',
+    budget_per_trip: 12000,
+    annual_budget: 90000,
+    group_type: 'friends',
+    activity_interests: ['trekking', 'beach'],
+    domestic_international: 'both',
+    comfort_level: 'mid-range',
+  })
+
+  const [tripDestination, setTripDestination] = useState('Goa')
+  const [tripStart, setTripStart] = useState('2026-10-02')
+  const [tripEnd, setTripEnd] = useState('2026-10-04')
+  const [tripBudget, setTripBudget] = useState(15000)
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams({ year: String(year) })
@@ -73,6 +100,50 @@ function App() {
     )
   }
 
+  const savePreferences = async () => {
+    setApiMessage('Saving preferences...')
+    try {
+      const qs = new URLSearchParams({ user_email: userEmail }).toString()
+      const res = await fetch(`/api/preferences/?${qs}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(preferences),
+      })
+      const body = await res.json()
+      if (!res.ok) {
+        throw new Error(body?.detail || `API error ${res.status}`)
+      }
+      setApiMessage('Preferences saved successfully.')
+    } catch (e) {
+      setApiMessage(e instanceof Error ? e.message : 'Failed to save preferences')
+    }
+  }
+
+  const createTripDraft = async () => {
+    setApiMessage('Creating trip draft...')
+    try {
+      const qs = new URLSearchParams({ user_email: userEmail }).toString()
+      const res = await fetch(`/api/trips/draft?${qs}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination: tripDestination,
+          start_date: tripStart,
+          end_date: tripEnd,
+          estimated_budget: tripBudget,
+          notes: 'Generated from frontend MVP panel',
+        }),
+      })
+      const body = await res.json()
+      if (!res.ok) {
+        throw new Error(body?.detail || `API error ${res.status}`)
+      }
+      setApiMessage(`Draft created: ${body.id}`)
+    } catch (e) {
+      setApiMessage(e instanceof Error ? e.message : 'Failed to create trip draft')
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 px-6 py-10">
       <div className="max-w-6xl mx-auto space-y-8">
@@ -86,6 +157,17 @@ function App() {
         </header>
 
         <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <label htmlFor="userEmail" className="text-sm text-slate-400">User Email</label>
+            <input
+              id="userEmail"
+              type="email"
+              value={userEmail}
+              onChange={(e) => setUserEmail(e.target.value)}
+              className="w-80 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+            />
+          </div>
+
           <div className="flex flex-wrap items-center gap-3">
             <label htmlFor="year" className="text-sm text-slate-400">Year</label>
             <input
@@ -116,6 +198,54 @@ function App() {
                 </button>
               )
             })}
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-3 pt-2 border-t border-slate-800">
+            <button
+              onClick={savePreferences}
+              className="rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-medium py-2 px-3"
+            >
+              Save Preferences
+            </button>
+
+            <button
+              onClick={createTripDraft}
+              className="rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-medium py-2 px-3"
+            >
+              Create Trip Draft
+            </button>
+
+            <div className="text-xs text-slate-300 rounded-lg border border-slate-700 px-3 py-2">
+              {apiMessage || 'No API action yet'}
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-4 gap-3 text-sm">
+            <input
+              value={tripDestination}
+              onChange={(e) => setTripDestination(e.target.value)}
+              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
+              placeholder="Destination"
+            />
+            <input
+              type="date"
+              value={tripStart}
+              onChange={(e) => setTripStart(e.target.value)}
+              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
+            />
+            <input
+              type="date"
+              value={tripEnd}
+              onChange={(e) => setTripEnd(e.target.value)}
+              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
+            />
+            <input
+              type="number"
+              value={tripBudget}
+              onChange={(e) => setTripBudget(Number(e.target.value) || 0)}
+              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
+              placeholder="Budget"
+            />
           </div>
         </section>
 
