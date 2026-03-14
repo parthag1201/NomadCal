@@ -19,9 +19,6 @@ class Settings(BaseSettings):
     # Redis — for caching flight/hotel prices
     redis_url: str = "redis://localhost:6379/0"
 
-    # OpenAI — for LLM-powered recommendations & itinerary generation
-    openai_api_key: str = ""
-
     # JWT Auth
     secret_key: str = "change-me-in-production"
     algorithm: str = "HS256"

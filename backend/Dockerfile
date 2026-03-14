@@ -31,4 +31,4 @@ EXPOSE 8000
 # Start the API with uvicorn
 # --host 0.0.0.0 : listen on all interfaces inside the container (required for Docker)
 # --reload       : auto-reload on code changes (for dev; remove for prod)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000les", "--reload"]
