@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.models import Destination, Trip, User
 from app.schemas import TripDraftIn
 from app.services.calendar_engine import get_travel_windows
+from app.services.recommendation_engine import suggest_destinations
 
 router = APIRouter()
 
@@ -36,6 +37,27 @@ async def list_travel_windows(
         blackout_dates=blackout_dates,
     )
     return {"year": year, "count": len(windows), "windows": windows}
+
+
+@router.get("/recommendations")
+async def list_recommendations(
+    year: int = Query(..., description="Year to plan for, e.g. 2026"),
+    preferred_months: list[str] | None = Query(default=None),
+    interests: list[str] | None = Query(default=None),
+    budget_per_trip: int | None = Query(default=None),
+    max_results: int = Query(default=8, ge=1, le=20),
+):
+    """
+    Seed-data recommendations without DB dependency.
+    Useful while infra is still being brought up.
+    """
+    return suggest_destinations(
+        year=year,
+        preferred_months=preferred_months,
+        interests=interests,
+        budget_per_trip=budget_per_trip,
+        max_results=max_results,
+    )
 
 
 @router.post("/draft")

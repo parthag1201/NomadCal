@@ -16,6 +16,22 @@ type WindowsResponse = {
   windows: TravelWindow[]
 }
 
+type Recommendation = {
+  name: string
+  country: string
+  state: string | null
+  dest_type: string
+  avg_cost_per_day: number | null
+  activities: string[]
+  tags: string[]
+  score: number
+}
+
+type RecommendationsResponse = {
+  year: number
+  suggestions: Recommendation[]
+}
+
 type PreferencesPayload = {
   travel_style: 'adventure' | 'relaxation' | 'culture' | 'mixed'
   budget_per_trip: number
@@ -48,9 +64,10 @@ function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [data, setData] = useState<WindowsResponse | null>(null)
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [apiMessage, setApiMessage] = useState('')
 
-  const [preferences] = useState<PreferencesPayload>({
+  const [preferences, setPreferences] = useState<PreferencesPayload>({
     travel_style: 'adventure',
     budget_per_trip: 12000,
     annual_budget: 90000,
@@ -82,6 +99,22 @@ function App() {
         }
         const json = (await res.json()) as WindowsResponse
         setData(json)
+
+        const recParams = new URLSearchParams({
+          year: String(year),
+          budget_per_trip: String(preferences.budget_per_trip),
+          max_results: '6',
+        })
+        selectedMonths.forEach((m) => recParams.append('preferred_months', m))
+        preferences.activity_interests.forEach((i) => recParams.append('interests', i))
+
+        const recRes = await fetch(`/api/trips/recommendations?${recParams.toString()}`)
+        if (recRes.ok) {
+          const recJson = (await recRes.json()) as RecommendationsResponse
+          setRecommendations(recJson.suggestions || [])
+        } else {
+          setRecommendations([])
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Unknown error')
       } finally {
@@ -116,6 +149,41 @@ function App() {
       setApiMessage('Preferences saved successfully.')
     } catch (e) {
       setApiMessage(e instanceof Error ? e.message : 'Failed to save preferences')
+    }
+  }
+
+  const loadPreferences = async () => {
+    setApiMessage('Loading preferences...')
+    try {
+      const qs = new URLSearchParams({ user_email: userEmail }).toString()
+      const res = await fetch(`/api/preferences/?${qs}`)
+      const body = await res.json()
+      if (!res.ok) {
+        throw new Error(body?.detail || `API error ${res.status}`)
+      }
+
+      if (body?.exists && body?.preferences) {
+        setPreferences(body.preferences as PreferencesPayload)
+        setApiMessage('Preferences loaded.')
+      } else {
+        setApiMessage(body?.message || 'No preferences found yet.')
+      }
+    } catch (e) {
+      setApiMessage(e instanceof Error ? e.message : 'Failed to load preferences')
+    }
+  }
+
+  const seedDestinations = async () => {
+    setApiMessage('Seeding destinations...')
+    try {
+      const res = await fetch('/api/trips/seed-destinations', { method: 'POST' })
+      const body = await res.json()
+      if (!res.ok) {
+        throw new Error(body?.detail || `API error ${res.status}`)
+      }
+      setApiMessage(`Destinations inserted: ${body.inserted}/${body.total_in_file}`)
+    } catch (e) {
+      setApiMessage(e instanceof Error ? e.message : 'Failed to seed destinations')
     }
   }
 
@@ -200,12 +268,19 @@ function App() {
             })}
           </div>
 
-          <div className="grid md:grid-cols-3 gap-3 pt-2 border-t border-slate-800">
+          <div className="grid md:grid-cols-4 gap-3 pt-2 border-t border-slate-800">
             <button
               onClick={savePreferences}
               className="rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-medium py-2 px-3"
             >
               Save Preferences
+            </button>
+
+            <button
+              onClick={loadPreferences}
+              className="rounded-lg bg-indigo-500 hover:bg-indigo-400 text-slate-900 font-medium py-2 px-3"
+            >
+              Load Preferences
             </button>
 
             <button
@@ -215,7 +290,14 @@ function App() {
               Create Trip Draft
             </button>
 
-            <div className="text-xs text-slate-300 rounded-lg border border-slate-700 px-3 py-2">
+            <button
+              onClick={seedDestinations}
+              className="rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-900 font-medium py-2 px-3"
+            >
+              Seed Destinations
+            </button>
+
+            <div className="md:col-span-4 text-xs text-slate-300 rounded-lg border border-slate-700 px-3 py-2">
               {apiMessage || 'No API action yet'}
             </div>
           </div>
@@ -279,6 +361,29 @@ function App() {
                   </article>
                 ))}
               </div>
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold text-slate-100">Suggested Destinations</h2>
+          {recommendations.length === 0 ? (
+            <p className="text-slate-400 text-sm">No suggestions yet.</p>
+          ) : (
+            <div className="grid md:grid-cols-3 gap-3">
+              {recommendations.map((r) => (
+                <article key={`${r.name}-${r.dest_type}`} className="rounded-xl border border-slate-800 bg-slate-900 p-4 space-y-2">
+                  <h3 className="font-semibold text-slate-100">{r.name}</h3>
+                  <p className="text-sm text-slate-400">{r.state ? `${r.state}, ${r.country}` : r.country}</p>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-full bg-slate-800 px-2 py-1">score: {r.score}</span>
+                    <span className="rounded-full bg-slate-800 px-2 py-1">{r.dest_type}</span>
+                    {r.avg_cost_per_day && (
+                      <span className="rounded-full bg-slate-800 px-2 py-1">~INR {r.avg_cost_per_day}/day</span>
+                    )}
+                  </div>
+                </article>
+              ))}
             </div>
           )}
         </section>
