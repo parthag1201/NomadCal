@@ -81,6 +81,7 @@ function App() {
   const [tripStart, setTripStart] = useState('2026-10-02')
   const [tripEnd, setTripEnd] = useState('2026-10-04')
   const [tripBudget, setTripBudget] = useState(15000)
+  const [interestInput, setInterestInput] = useState('trekking, beach, nightlife')
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams({ year: String(year) })
@@ -136,11 +137,19 @@ function App() {
   const savePreferences = async () => {
     setApiMessage('Saving preferences...')
     try {
+      const parsedInterests = interestInput
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean)
+
       const qs = new URLSearchParams({ user_email: userEmail }).toString()
       const res = await fetch(`/api/preferences/?${qs}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(preferences),
+        body: JSON.stringify({
+          ...preferences,
+          activity_interests: parsedInterests,
+        }),
       })
       const body = await res.json()
       if (!res.ok) {
@@ -164,6 +173,7 @@ function App() {
 
       if (body?.exists && body?.preferences) {
         setPreferences(body.preferences as PreferencesPayload)
+        setInterestInput((body.preferences.activity_interests || []).join(', '))
         setApiMessage('Preferences loaded.')
       } else {
         setApiMessage(body?.message || 'No preferences found yet.')
@@ -327,6 +337,73 @@ function App() {
               onChange={(e) => setTripBudget(Number(e.target.value) || 0)}
               className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
               placeholder="Budget"
+            />
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-3 text-sm border-t border-slate-800 pt-3">
+            <select
+              value={preferences.travel_style}
+              onChange={(e) => setPreferences((p) => ({ ...p, travel_style: e.target.value as PreferencesPayload['travel_style'] }))}
+              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
+            >
+              <option value="adventure">adventure</option>
+              <option value="relaxation">relaxation</option>
+              <option value="culture">culture</option>
+              <option value="mixed">mixed</option>
+            </select>
+
+            <select
+              value={preferences.group_type}
+              onChange={(e) => setPreferences((p) => ({ ...p, group_type: e.target.value as PreferencesPayload['group_type'] }))}
+              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
+            >
+              <option value="solo">solo</option>
+              <option value="couple">couple</option>
+              <option value="family">family</option>
+              <option value="friends">friends</option>
+            </select>
+
+            <select
+              value={preferences.comfort_level}
+              onChange={(e) => setPreferences((p) => ({ ...p, comfort_level: e.target.value as PreferencesPayload['comfort_level'] }))}
+              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
+            >
+              <option value="backpacker">backpacker</option>
+              <option value="mid-range">mid-range</option>
+              <option value="luxury">luxury</option>
+            </select>
+
+            <input
+              type="number"
+              value={preferences.budget_per_trip}
+              onChange={(e) => setPreferences((p) => ({ ...p, budget_per_trip: Number(e.target.value) || 0 }))}
+              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
+              placeholder="Budget per trip"
+            />
+
+            <input
+              type="number"
+              value={preferences.annual_budget}
+              onChange={(e) => setPreferences((p) => ({ ...p, annual_budget: Number(e.target.value) || 0 }))}
+              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
+              placeholder="Annual budget"
+            />
+
+            <select
+              value={preferences.domestic_international}
+              onChange={(e) => setPreferences((p) => ({ ...p, domestic_international: e.target.value as PreferencesPayload['domestic_international'] }))}
+              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
+            >
+              <option value="domestic">domestic</option>
+              <option value="international">international</option>
+              <option value="both">both</option>
+            </select>
+
+            <input
+              value={interestInput}
+              onChange={(e) => setInterestInput(e.target.value)}
+              className="md:col-span-3 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
+              placeholder="Interests (comma separated): trekking, beach, nightlife"
             />
           </div>
         </section>

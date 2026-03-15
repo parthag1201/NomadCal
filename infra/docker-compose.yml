@@ -11,8 +11,6 @@
 #   docker-compose down           # stop everything
 #   docker-compose down -v        # stop + delete data volumes (fresh start)
 
-version: "3.9"
-
 services:
   # ─────────────────────────────────────────────────
   # PostgreSQL — our main database
