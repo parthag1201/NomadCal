@@ -32,6 +32,23 @@ type RecommendationsResponse = {
   suggestions: Recommendation[]
 }
 
+type TripDraft = {
+  id: string
+  title: string
+  destination: string | null
+  start_date: string
+  end_date: string
+  duration_days: number
+  estimated_budget: number | null
+  status: 'suggested' | 'confirmed' | 'completed'
+  notes: string | null
+}
+
+type TripDraftsResponse = {
+  count: number
+  trips: TripDraft[]
+}
+
 type PreferencesPayload = {
   travel_style: 'adventure' | 'relaxation' | 'culture' | 'mixed'
   budget_per_trip: number
@@ -65,6 +82,7 @@ function App() {
   const [error, setError] = useState('')
   const [data, setData] = useState<WindowsResponse | null>(null)
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
+  const [tripDrafts, setTripDrafts] = useState<TripDraft[]>([])
   const [apiMessage, setApiMessage] = useState('')
 
   const [preferences, setPreferences] = useState<PreferencesPayload>({
@@ -124,7 +142,7 @@ function App() {
     }
 
     void fetchWindows()
-  }, [queryString])
+  }, [queryString, preferences.budget_per_trip, preferences.activity_interests])
 
   const toggleMonth = (month: string) => {
     setSelectedMonths((prev) =>
@@ -197,6 +215,23 @@ function App() {
     }
   }
 
+  const loadTripDrafts = async () => {
+    setApiMessage('Loading trip drafts...')
+    try {
+      const qs = new URLSearchParams({ user_email: userEmail, limit: '20' }).toString()
+      const res = await fetch(`/api/trips?${qs}`)
+      const body = (await res.json()) as TripDraftsResponse | { detail?: string }
+      if (!res.ok) {
+        throw new Error((body as { detail?: string }).detail || `API error ${res.status}`)
+      }
+      const typed = body as TripDraftsResponse
+      setTripDrafts(typed.trips || [])
+      setApiMessage(`Loaded ${typed.count} draft(s).`)
+    } catch (e) {
+      setApiMessage(e instanceof Error ? e.message : 'Failed to load trip drafts')
+    }
+  }
+
   const createTripDraft = async () => {
     setApiMessage('Creating trip draft...')
     try {
@@ -217,6 +252,7 @@ function App() {
         throw new Error(body?.detail || `API error ${res.status}`)
       }
       setApiMessage(`Draft created: ${body.id}`)
+      await loadTripDrafts()
     } catch (e) {
       setApiMessage(e instanceof Error ? e.message : 'Failed to create trip draft')
     }
@@ -278,7 +314,7 @@ function App() {
             })}
           </div>
 
-          <div className="grid md:grid-cols-4 gap-3 pt-2 border-t border-slate-800">
+          <div className="grid md:grid-cols-5 gap-3 pt-2 border-t border-slate-800">
             <button
               onClick={savePreferences}
               className="rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-medium py-2 px-3"
@@ -298,6 +334,13 @@ function App() {
               className="rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-medium py-2 px-3"
             >
               Create Trip Draft
+            </button>
+
+            <button
+              onClick={loadTripDrafts}
+              className="rounded-lg bg-violet-500 hover:bg-violet-400 text-slate-900 font-medium py-2 px-3"
+            >
+              Load Trip Drafts
             </button>
 
             <button
@@ -458,6 +501,30 @@ function App() {
                     {r.avg_cost_per_day && (
                       <span className="rounded-full bg-slate-800 px-2 py-1">~INR {r.avg_cost_per_day}/day</span>
                     )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold text-slate-100">Saved Trip Drafts</h2>
+          {tripDrafts.length === 0 ? (
+            <p className="text-slate-400 text-sm">No drafts yet for this user.</p>
+          ) : (
+            <div className="grid md:grid-cols-2 gap-3">
+              {tripDrafts.map((t) => (
+                <article key={t.id} className="rounded-xl border border-slate-800 bg-slate-900 p-4 space-y-2">
+                  <h3 className="font-semibold text-slate-100">{t.title}</h3>
+                  <p className="text-sm text-slate-400">{t.start_date} to {t.end_date}</p>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-full bg-slate-800 px-2 py-1">{t.destination || 'Custom destination'}</span>
+                    <span className="rounded-full bg-slate-800 px-2 py-1">{t.duration_days} day(s)</span>
+                    {t.estimated_budget && (
+                      <span className="rounded-full bg-slate-800 px-2 py-1">INR {t.estimated_budget}</span>
+                    )}
+                    <span className="rounded-full bg-emerald-900/40 border border-emerald-700 px-2 py-1 text-emerald-200">{t.status}</span>
                   </div>
                 </article>
               ))}

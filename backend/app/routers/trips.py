@@ -112,6 +112,48 @@ async def create_trip_draft(
     }
 
 
+@router.get("")
+async def list_trip_drafts(
+    user_email: str = Query(..., description="User email to list drafts for"),
+    limit: int = Query(default=20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    """List persisted trip drafts for a user."""
+    try:
+        user = await db.scalar(select(User).where(User.email == user_email))
+        if not user:
+            return {"count": 0, "trips": []}
+
+        stmt = (
+            select(Trip, Destination.name)
+            .outerjoin(Destination, Trip.destination_id == Destination.id)
+            .where(Trip.user_id == user.id)
+            .order_by(Trip.created_at.desc())
+            .limit(limit)
+        )
+        rows = (await db.execute(stmt)).all()
+
+        trips = []
+        for trip, destination_name in rows:
+            trips.append(
+                {
+                    "id": str(trip.id),
+                    "title": trip.title,
+                    "destination": destination_name,
+                    "start_date": trip.start_date.isoformat(),
+                    "end_date": trip.end_date.isoformat(),
+                    "duration_days": trip.duration_days,
+                    "estimated_budget": trip.estimated_budget,
+                    "status": trip.status,
+                    "notes": trip.notes,
+                }
+            )
+
+        return {"count": len(trips), "trips": trips}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Database unavailable. Start PostgreSQL and retry.") from exc
+
+
 @router.post("/seed-destinations")
 async def seed_destinations(db: AsyncSession = Depends(get_db)):
     """Load curated destination seed data into DB if not already present."""
