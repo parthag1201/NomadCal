@@ -83,6 +83,7 @@ function App() {
   const [data, setData] = useState<WindowsResponse | null>(null)
   const [recommendations, setRecommendations] = useState<Recommendation[]>([])
   const [tripDrafts, setTripDrafts] = useState<TripDraft[]>([])
+  const [draftStatusFilter, setDraftStatusFilter] = useState<'all' | 'suggested' | 'confirmed' | 'completed'>('all')
   const [apiMessage, setApiMessage] = useState('')
 
   const [preferences, setPreferences] = useState<PreferencesPayload>({
@@ -218,7 +219,11 @@ function App() {
   const loadTripDrafts = async () => {
     setApiMessage('Loading trip drafts...')
     try {
-      const qs = new URLSearchParams({ user_email: userEmail, limit: '20' }).toString()
+      const params = new URLSearchParams({ user_email: userEmail, limit: '20' })
+      if (draftStatusFilter !== 'all') {
+        params.set('status', draftStatusFilter)
+      }
+      const qs = params.toString()
       const res = await fetch(`/api/trips?${qs}`)
       const body = (await res.json()) as TripDraftsResponse | { detail?: string }
       if (!res.ok) {
@@ -229,6 +234,45 @@ function App() {
       setApiMessage(`Loaded ${typed.count} draft(s).`)
     } catch (e) {
       setApiMessage(e instanceof Error ? e.message : 'Failed to load trip drafts')
+    }
+  }
+
+  const updateTripDraft = async (
+    tripId: string,
+    patch: { status?: 'suggested' | 'confirmed' | 'completed'; notes?: string }
+  ) => {
+    setApiMessage('Updating draft...')
+    try {
+      const qs = new URLSearchParams({ user_email: userEmail }).toString()
+      const res = await fetch(`/api/trips/${tripId}?${qs}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      })
+      const body = await res.json()
+      if (!res.ok) {
+        throw new Error(body?.detail || `API error ${res.status}`)
+      }
+      setApiMessage(`Draft updated: ${body.status}`)
+      await loadTripDrafts()
+    } catch (e) {
+      setApiMessage(e instanceof Error ? e.message : 'Failed to update draft')
+    }
+  }
+
+  const deleteTripDraft = async (tripId: string) => {
+    setApiMessage('Deleting draft...')
+    try {
+      const qs = new URLSearchParams({ user_email: userEmail }).toString()
+      const res = await fetch(`/api/trips/${tripId}?${qs}`, { method: 'DELETE' })
+      const body = await res.json()
+      if (!res.ok) {
+        throw new Error(body?.detail || `API error ${res.status}`)
+      }
+      setApiMessage(`Draft deleted: ${body.id}`)
+      await loadTripDrafts()
+    } catch (e) {
+      setApiMessage(e instanceof Error ? e.message : 'Failed to delete draft')
     }
   }
 
@@ -257,6 +301,10 @@ function App() {
       setApiMessage(e instanceof Error ? e.message : 'Failed to create trip draft')
     }
   }
+
+  useEffect(() => {
+    void loadTripDrafts()
+  }, [draftStatusFilter])
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 px-6 py-10">
@@ -342,6 +390,17 @@ function App() {
             >
               Load Trip Drafts
             </button>
+
+            <select
+              value={draftStatusFilter}
+              onChange={(e) => setDraftStatusFilter(e.target.value as 'all' | 'suggested' | 'confirmed' | 'completed')}
+              className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+            >
+              <option value="all">all statuses</option>
+              <option value="suggested">suggested</option>
+              <option value="confirmed">confirmed</option>
+              <option value="completed">completed</option>
+            </select>
 
             <button
               onClick={seedDestinations}
@@ -525,6 +584,41 @@ function App() {
                       <span className="rounded-full bg-slate-800 px-2 py-1">INR {t.estimated_budget}</span>
                     )}
                     <span className="rounded-full bg-emerald-900/40 border border-emerald-700 px-2 py-1 text-emerald-200">{t.status}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      onClick={() => updateTripDraft(t.id, { status: 'confirmed' })}
+                      className="text-xs rounded bg-emerald-600 hover:bg-emerald-500 px-2 py-1"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      onClick={() => updateTripDraft(t.id, { status: 'completed' })}
+                      className="text-xs rounded bg-cyan-600 hover:bg-cyan-500 px-2 py-1"
+                    >
+                      Complete
+                    </button>
+                    <button
+                      onClick={() => {
+                        const notes = window.prompt('Update notes', t.notes || '')
+                        if (notes !== null) {
+                          void updateTripDraft(t.id, { notes })
+                        }
+                      }}
+                      className="text-xs rounded bg-slate-700 hover:bg-slate-600 px-2 py-1"
+                    >
+                      Edit Notes
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Delete this draft?')) {
+                          void deleteTripDraft(t.id)
+                        }
+                      }}
+                      className="text-xs rounded bg-rose-700 hover:bg-rose-600 px-2 py-1"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </article>
               ))}

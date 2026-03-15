@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query
 from pathlib import Path
 import json
+import uuid
 from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +10,7 @@ from fastapi import HTTPException
 
 from app.core.database import get_db
 from app.models import Destination, Trip, User
-from app.schemas import TripDraftIn
+from app.schemas import TripDraftIn, TripUpdateIn
 from app.services.calendar_engine import get_travel_windows
 from app.services.recommendation_engine import suggest_destinations
 
@@ -115,6 +116,7 @@ async def create_trip_draft(
 @router.get("")
 async def list_trip_drafts(
     user_email: str = Query(..., description="User email to list drafts for"),
+    status: str | None = Query(default=None, description="Optional status filter: suggested|confirmed|completed"),
     limit: int = Query(default=20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
@@ -131,6 +133,8 @@ async def list_trip_drafts(
             .order_by(Trip.created_at.desc())
             .limit(limit)
         )
+        if status:
+            stmt = stmt.where(Trip.status == status)
         rows = (await db.execute(stmt)).all()
 
         trips = []
@@ -151,6 +155,79 @@ async def list_trip_drafts(
 
         return {"count": len(trips), "trips": trips}
     except Exception as exc:
+        raise HTTPException(status_code=503, detail="Database unavailable. Start PostgreSQL and retry.") from exc
+
+
+@router.patch("/{trip_id}")
+async def update_trip_draft(
+    trip_id: str,
+    payload: TripUpdateIn,
+    user_email: str = Query(..., description="Owner user email"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update an existing trip draft (status and/or notes)."""
+    try:
+        try:
+            trip_uuid = uuid.UUID(trip_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid trip id") from exc
+
+        user = await db.scalar(select(User).where(User.email == user_email))
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        trip = await db.scalar(select(Trip).where(Trip.id == trip_uuid, Trip.user_id == user.id))
+        if not trip:
+            raise HTTPException(status_code=404, detail="Trip not found")
+
+        if payload.status is not None:
+            trip.status = payload.status
+        if payload.notes is not None:
+            trip.notes = payload.notes
+
+        await db.commit()
+        await db.refresh(trip)
+
+        return {
+            "id": str(trip.id),
+            "status": trip.status,
+            "notes": trip.notes,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        await db.rollback()
+        raise HTTPException(status_code=503, detail="Database unavailable. Start PostgreSQL and retry.") from exc
+
+
+@router.delete("/{trip_id}")
+async def delete_trip_draft(
+    trip_id: str,
+    user_email: str = Query(..., description="Owner user email"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete a trip draft by id for a given user."""
+    try:
+        try:
+            trip_uuid = uuid.UUID(trip_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid trip id") from exc
+
+        user = await db.scalar(select(User).where(User.email == user_email))
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        trip = await db.scalar(select(Trip).where(Trip.id == trip_uuid, Trip.user_id == user.id))
+        if not trip:
+            raise HTTPException(status_code=404, detail="Trip not found")
+
+        await db.delete(trip)
+        await db.commit()
+        return {"deleted": True, "id": trip_id}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        await db.rollback()
         raise HTTPException(status_code=503, detail="Database unavailable. Start PostgreSQL and retry.") from exc
 
 

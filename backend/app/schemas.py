@@ -50,3 +50,8 @@ class TripDraftIn(BaseModel):
 class TripDraftOut(TripDraftIn):
     id: str
     status: Literal["suggested", "confirmed", "completed"] = "suggested"
+
+
+class TripUpdateIn(BaseModel):
+    status: Literal["suggested", "confirmed", "completed"] | None = None
+    notes: str | None = None
