@@ -28,6 +28,7 @@ dist/
 # DB
 *.db
 *.sqlite3
+data/local/
 
 # Docker
 *.log
